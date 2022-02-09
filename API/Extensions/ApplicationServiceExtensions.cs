@@ -20,7 +20,7 @@ using Persistence;
 
 namespace API.Extensions
 {
-  public static class ApplicationServiceExtentions
+  public static class ApplicationServiceExtensions
   {
     public static IServiceCollection AddApplicationServices(this IServiceCollection services, IConfiguration config)
     {
