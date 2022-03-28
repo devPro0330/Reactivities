@@ -2,7 +2,8 @@ import axios, { AxiosError, AxiosResponse } from "axios";
 import { toast } from "react-toastify";
 import { history } from "../..";
 import { Activity, ActivityFormValues } from "../models/activity";
-import { Photo, Profile } from "../models/profile";
+import { PaginatedResult } from "../models/pagination";
+import { Photo, Profile, UserActivity } from "../models/profile";
 import { User, UserFormValues } from "../models/user";
 import { store } from "../stores/store";
 
@@ -21,11 +22,16 @@ axios.interceptors.request.use(config => {
 })
 
 axios.interceptors.response.use(async response => {
-    await sleep(1000);
-    return response;
+  await sleep(1000);
+  const pagination = response.headers['pagination'];
+  if (pagination) {
+    response.data = new PaginatedResult(response.data, JSON.parse(pagination));
+    return response as AxiosResponse<PaginatedResult<any>>;
+  }
+  return response;
 }, (error: AxiosError) => {
-  const {data, status, config} = error.response!;
-  switch(status) {
+  const { data, status, config } = error.response!;
+  switch (status) {
     case 400:
       if (typeof data === 'string') {
         toast.error(data);
@@ -57,17 +63,17 @@ axios.interceptors.response.use(async response => {
   return Promise.reject(error);
 })
 
-const responseBody = <T> (response: AxiosResponse<T>) => response.data;
+const responseBody = <T>(response: AxiosResponse<T>) => response.data;
 
 const requests = {
-  get: <T> (url: string) => axios.get<T>(url).then(responseBody),
-  post: <T> (url: string, body: {}) => axios.post<T>(url, body).then(responseBody),
-  put: <T> (url: string, body: {}) => axios.put<T>(url, body).then(responseBody),
-  del: <T> (url: string) => axios.delete<T>(url).then(responseBody),
+  get: <T>(url: string) => axios.get<T>(url).then(responseBody),
+  post: <T>(url: string, body: {}) => axios.post<T>(url, body).then(responseBody),
+  put: <T>(url: string, body: {}) => axios.put<T>(url, body).then(responseBody),
+  del: <T>(url: string) => axios.delete<T>(url).then(responseBody),
 }
 
 const Activities = {
-  list: () => requests.get<Activity[]>('/activities'),
+  list: (params: URLSearchParams) => axios.get<PaginatedResult<Activity[]>>('/activities', {params}).then(responseBody),
   details: (id: string) => requests.get<Activity>(`/activities/${id}`),
   create: (activity: ActivityFormValues) => requests.post<void>('/activities', activity),
   update: (activity: ActivityFormValues) => requests.put<void>(`/activities/${activity.id}`, activity),
@@ -77,8 +83,8 @@ const Activities = {
 
 const Account = {
   current: () => requests.get<User>('/account'),
-  login: (user: UserFormValues) => requests.post<User>('/account/login', user), 
-  register: (user: UserFormValues) => requests.post<User>('/account/register', user), 
+  login: (user: UserFormValues) => requests.post<User>('/account/login', user),
+  register: (user: UserFormValues) => requests.post<User>('/account/register', user),
 }
 
 const Profiles = {
@@ -87,14 +93,15 @@ const Profiles = {
     let formData = new FormData();
     formData.append('File', file);
     return axios.post<Photo>('photos', formData, {
-      headers: {'Content-type': 'multipart/form-data'}
+      headers: { 'Content-type': 'multipart/form-data' }
     })
   },
-  setMainPhoto: (id: string) => requests.post(`/photos/${id}/setMain`, {}), 
-  deletePhoto: (id: string) => requests.del(`/photos/${id}`), 
+  setMainPhoto: (id: string) => requests.post(`/photos/${id}/setMain`, {}),
+  deletePhoto: (id: string) => requests.del(`/photos/${id}`),
   updateProfile: (profile: Partial<Profile>) => requests.put(`/profiles`, profile),
   updateFollowing: (username: string) => requests.post(`/follow/${username}`, {}),
-  listFollowings: (username: string, predicate: string) => requests.get<Profile[]>(`/follow/${username}?predicate=${predicate}`)
+  listFollowings: (username: string, predicate: string) => requests.get<Profile[]>(`/follow/${username}?predicate=${predicate}`),
+  listActivities: (username: string, predicate: string) => requests.get<UserActivity[]>(`/profiles/${username}/activities?predicate=${predicate}`)
 }
 
 const agent = {
